@@ -1,15 +1,28 @@
 import requests
-from getpass import getpass
+import sys
 
 BASE_URL = "http://127.0.0.1:8000"
+
+def safe_password(prompt: str = "Enter password: ") -> str:
+    try:
+        from pwinput import pwinput
+        return pwinput(prompt)
+    except Exception:
+        pass
+
+    try:
+        from getpass import getpass
+        return getpass(prompt)
+    except Exception as e:
+        print(f"[WARN] password masking failed ({repr(e)}). Using visible input instead.")
+        return input(prompt)
 
 def register_user():
     username = input("Enter username: ").strip()
     email = input("Enter email: ").strip()
-    password = getpass("Enter password: ")
+    password = safe_password()
 
     payload = {"username": username, "email": email, "password": password}
-
     r = requests.post(f"{BASE_URL}/register/", json=payload, timeout=10)
     try:
         print(r.status_code, r.json())
@@ -18,11 +31,11 @@ def register_user():
 
 def login_user():
     email = input("Enter email: ").strip()
-    password = getpass("Enter password: ")
+    password = safe_password()
 
     payload = {"email": email, "password": password}
-
     r = requests.post(f"{BASE_URL}/login/", json=payload, timeout=10)
+
     try:
         data = r.json()
     except Exception:
@@ -37,7 +50,6 @@ def login_user():
 
 def verify_otp(email: str, otp: str):
     payload = {"email": email, "otp": otp}
-
     r = requests.post(f"{BASE_URL}/verify_otp/", json=payload, timeout=10)
     try:
         print(r.status_code, r.json())
@@ -59,7 +71,7 @@ def main():
             login_user()
         elif choice == "3":
             print("Bye!")
-            break
+            sys.exit(0)
         else:
             print("Invalid choice.")
 
