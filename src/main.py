@@ -6,6 +6,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import os
+import ssl
 from pathlib import Path 
 from dotenv import load_dotenv
 
@@ -35,11 +36,14 @@ def send_otp_email(to_email, otp):
         msg.attach(MIMEText(body, 'plain'))
 
         # Setup the SMTP server and send the email
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(SENDER_EMAIL, SENDER_PASSWORD)
-        server.sendmail(SENDER_EMAIL, to_email, msg.as_string())
-        server.quit()
+        context = ssl.create_default_context()
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+            server.ehlo()
+            server.starttls(context=ssl.create_default_context())
+            server.ehlo()
+            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+            server.sendmail(SENDER_EMAIL, to_email, msg.as_string())
+            server.quit()
 
     except Exception as e:
         print("SMTP ERROR:", repr(e))  # show in uvicorn terminal
