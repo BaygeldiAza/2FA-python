@@ -123,3 +123,10 @@ async def verify_otp(otp_data: OTPVerification):
     users_db[found_username]["otp"] = None
 
     return {"message": "Login successful"}
+
+@app.get("/")
+def root():
+    return {
+        "message": "API is running",
+        "swagger": "http://127.0.0.1:8000/docs"
+    }
