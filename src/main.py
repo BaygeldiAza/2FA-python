@@ -6,6 +6,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import os
+import time 
 import ssl
 from pathlib import Path 
 from dotenv import load_dotenv
@@ -22,6 +23,9 @@ users_db = {}
 # Load email credentials from environment variables
 SENDER_EMAIL = os.getenv("SENDER_EMAIL")
 SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
+
+OTP_TTL_SECONDS = 120
+
 
 # Helper function to send OTP email
 def send_otp_email(to_email, otp):
