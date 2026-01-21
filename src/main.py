@@ -78,7 +78,9 @@ async def register(user: UserRegistration):
     users_db[user.username] = {
         'password': hashed_password,
         'email': user.email,
-        'otp': None
+        'otp': None,
+        'otp_expires_at': None
+
     }
     return {"message": "User registered successfully"}
 
@@ -102,9 +104,10 @@ async def login(user: UserLogin):
     # Generate OTP and send it
     otp = random.randint(100000, 999999)
     users_db[found_username]["otp"] = otp
+    users_db[found_username]["otp_expires_at"] = time.time() + OTP_TTL_SECONDS
     send_otp_email(user.email, otp)
 
-    return {"message": "OTP sent to email"}
+    return {"message": "OTP sent to email (expires in 2 minutes)"}
 
 @app.post("/verify_otp/")
 async def verify_otp(otp_data: OTPVerification):
@@ -120,12 +123,21 @@ async def verify_otp(otp_data: OTPVerification):
 
     # Verify OTP
     stored_otp = users_db[found_username]["otp"]
+    expires_at = users_db[found_username].get("otp_expires_at")
     if stored_otp is None or str(stored_otp) != otp_data.otp:
+        raise HTTPException(status_code=400, detail="No OTP requested. Please login again")
+    
+    if time.time() >= expires_at:
+        users_db[found_username]["otp"] = None
+        users_db[found_username]["otp_expires_at"] = None
+        raise HTTPException(status_code=400, detail="OTP expired! Login again.")
+
+    if stored_otp != otp_data.otp.strip():
         raise HTTPException(status_code=400, detail="Invalid OTP")
-
-    # Optional: clear OTP after use
+    
+    #Clear OTP after succesful login 
     users_db[found_username]["otp"] = None
-
+    users_db[found_username]["otp_expires_at"] = None
     return {"message": "Login successful"}
 
 @app.get("/")
