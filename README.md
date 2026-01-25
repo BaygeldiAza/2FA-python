@@ -83,14 +83,14 @@ This project demonstrates how to implement **Two-Factor Authentication (2FA)** u
 1. **Register**:
     ```bash
     Enter your username: johndoe
-    Enter your password: ********
     Enter your email: johndoe@example.com
+    Enter your password: ********
     User registered successfully
     ```
 
 2. **Login**:
     ```bash
-    Enter your username: johndoe
+    Enter your email: johndoe@example.com
     Enter your password: ********
     OTP sent to email
     Enter the OTP: 123456
