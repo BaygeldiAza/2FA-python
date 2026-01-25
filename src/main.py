@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import bcrypt
-import random
+import secrets
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -40,14 +40,13 @@ def send_otp_email(to_email, otp):
         msg.attach(MIMEText(body, 'plain'))
 
         # Setup the SMTP server and send the email
-        context = ssl.create_default_context()
+        sslcreate = ssl.create_default_context()
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
             server.ehlo()
-            server.starttls(context=ssl.create_default_context())
+            server.starttls(context = sslcreate )
             server.ehlo()
             server.login(SENDER_EMAIL, SENDER_PASSWORD)
             server.sendmail(SENDER_EMAIL, to_email, msg.as_string())
-            server.quit()
 
     except Exception as e:
         print("SMTP ERROR:", repr(e))  # show in uvicorn terminal
@@ -57,8 +56,8 @@ def send_otp_email(to_email, otp):
 # Define Pydantic models for request validation
 class UserRegistration(BaseModel):
     username: str
-    password: str
     email: str
+    password: str
 
 class UserLogin(BaseModel):
     email: str
@@ -102,7 +101,7 @@ async def login(user: UserLogin):
         raise HTTPException(status_code=400, detail="Invalid credentials")
 
     # Generate OTP and send it
-    otp = random.randint(100000, 999999)
+    otp = f"{secrets.randint(0, 999999):06d}"
     users_db[found_username]["otp"] = otp
     users_db[found_username]["otp_expires_at"] = time.time() + OTP_TTL_SECONDS
     send_otp_email(user.email, otp)
@@ -122,11 +121,12 @@ async def verify_otp(otp_data: OTPVerification):
         raise HTTPException(status_code=404, detail="User not found")
 
     # Verify OTP
-    stored_otp = users_db[found_username]["otp"]
+    stored_otp = users_db[found_username].get("otp")
     expires_at = users_db[found_username].get("otp_expires_at")
-    if stored_otp is None or str(stored_otp) != otp_data.otp:
-        raise HTTPException(status_code=400, detail="No OTP requested. Please login again")
-    
+
+    if stored_otp is None or expires_at is None:
+        raise HTTPException(status_code=400, detail="No OTP requested. Please login again.")
+
     if time.time() >= expires_at:
         users_db[found_username]["otp"] = None
         users_db[found_username]["otp_expires_at"] = None
@@ -134,15 +134,10 @@ async def verify_otp(otp_data: OTPVerification):
 
     if stored_otp != otp_data.otp.strip():
         raise HTTPException(status_code=400, detail="Invalid OTP")
-    
-    #Clear OTP after succesful login 
+
+    # Clear after success
     users_db[found_username]["otp"] = None
     users_db[found_username]["otp_expires_at"] = None
     return {"message": "Login successful"}
 
-@app.get("/")
-def root():
-    return {
-        "message": "API is running",
-        "swagger": "http://127.0.0.1:8000/docs"
-    }
+
