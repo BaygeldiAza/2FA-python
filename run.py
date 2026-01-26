@@ -1,9 +1,15 @@
-import requests
 import sys
+import time
+import json
+import requests
 
 BASE_URL = "http://127.0.0.1:8000"
+TIMEOUT = 10
+OTP_LEN = 6
+
 
 def safe_password(prompt: str = "Enter password: ") -> str:
+    # Best masking available on Windows
     try:
         from pwinput import pwinput
         return pwinput(prompt)
@@ -13,9 +19,74 @@ def safe_password(prompt: str = "Enter password: ") -> str:
     try:
         from getpass import getpass
         return getpass(prompt)
-    except Exception as e:
-        print(f"[WARN] password masking failed ({repr(e)}). Using visible input instead.")
+    except Exception:
         return input(prompt)
+
+
+def api_request(method: str, path: str, payload: dict | None = None, retries: int = 2):
+    """
+    Robust API request wrapper:
+    - retries on connection errors/timeouts
+    - prints clean error messages (including FastAPI 422 details)
+    """
+    url = f"{BASE_URL}{path}"
+    last_err = None
+
+    for attempt in range(retries + 1):
+        try:
+            r = requests.request(method, url, json=payload, timeout=TIMEOUT)
+
+            # Try parse JSON
+            try:
+                data = r.json()
+            except Exception:
+                data = r.text
+
+            # FastAPI validation errors (422)
+            if r.status_code == 422:
+                print("\n[422] Validation error:")
+                if isinstance(data, dict) and "detail" in data:
+                    for item in data["detail"]:
+                        loc = ".".join(str(x) for x in item.get("loc", []))
+                        msg = item.get("msg", "")
+                        print(f" - {loc}: {msg}")
+                else:
+                    print(data)
+                return r.status_code, data
+
+            # Other errors
+            if r.status_code >= 400:
+                print(f"\n[{r.status_code}] Error response:")
+                print(data)
+                return r.status_code, data
+
+            return r.status_code, data
+
+        except (requests.Timeout, requests.ConnectionError) as e:
+            last_err = e
+            if attempt < retries:
+                sleep_s = 0.7 * (attempt + 1)
+                print(f"[WARN] {type(e).__name__}: {e}. Retrying in {sleep_s:.1f}s...")
+                time.sleep(sleep_s)
+            else:
+                print(f"[ERROR] Request failed after retries: {repr(last_err)}")
+                return 0, None
+
+        except Exception as e:
+            print(f"[ERROR] Unexpected error: {repr(e)}")
+            return 0, None
+
+    return 0, None
+
+
+def health_check():
+    code, data = api_request("GET", "/")
+    if code == 200:
+        print("[OK] API:", data)
+        return True
+    print("[FAIL] API not reachable.")
+    return False
+
 
 def register_user():
     username = input("Enter username: ").strip()
@@ -23,43 +94,54 @@ def register_user():
     password = safe_password()
 
     payload = {"username": username, "email": email, "password": password}
-    r = requests.post(f"{BASE_URL}/register/", json=payload, timeout=10)
-    try:
-        print(r.status_code, r.json())
-    except Exception:
-        print(r.status_code, r.text)
+    code, data = api_request("POST", "/register/", payload)
+
+    if code == 200:
+        print("[SUCCESS]", data)
+    else:
+        print("[FAILED]")
+
 
 def login_user():
     email = input("Enter email: ").strip()
     password = safe_password()
 
     payload = {"email": email, "password": password}
-    r = requests.post(f"{BASE_URL}/login/", json=payload, timeout=10)
+    code, data = api_request("POST", "/login/", payload)
 
-    try:
-        data = r.json()
-    except Exception:
-        print(r.status_code, r.text)
+    if code != 200:
+        print("[FAILED]")
         return
 
-    print(r.status_code, data)
+    print("[SUCCESS]", data)
 
-    if r.status_code == 200:
-        otp = input("Enter OTP sent to your email: ").strip()
-        verify_otp(email, otp)
+    # IMPORTANT: If SMTP is blocked in your network, you won't receive OTP.
+    # You can still test flow by reading OTP from server logs or storing OTP in dev mode.
+    otp = input("Enter OTP (6 digits): ").strip()
+
+    if not (otp.isdigit() and len(otp) == OTP_LEN):
+        print(f"[ERROR] OTP must be exactly {OTP_LEN} digits.")
+        return
+
+    verify_otp(email, otp)
+
 
 def verify_otp(email: str, otp: str):
     payload = {"email": email, "otp": otp}
-    r = requests.post(f"{BASE_URL}/verify_otp/", json=payload, timeout=10)
-    try:
-        print(r.status_code, r.json())
-    except Exception:
-        print(r.status_code, r.text)
+    code, data = api_request("POST", "/verify_otp/", payload)
+
+    if code == 200:
+        print("[SUCCESS]", data)
+    else:
+        print("[FAILED]")
+
 
 def main():
+    print("=== Email OTP 2FA Demo Client ===")
+    health_check()
+
     while True:
-        print("\n=== Email OTP 2FA Demo ===")
-        print("1) Register")
+        print("\n1) Register")
         print("2) Login (Email + Password -> OTP)")
         print("3) Exit")
 
@@ -74,6 +156,7 @@ def main():
             sys.exit(0)
         else:
             print("Invalid choice.")
+
 
 if __name__ == "__main__":
     main()
