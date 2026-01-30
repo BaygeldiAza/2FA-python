@@ -1,15 +1,15 @@
 from sqlalchemy.orm import Session
 from .models import User
 from datetime import datetime, timedelta
-import pyotp
+import secrets
 
 def create_user(db: Session, username: str, email: str, hashed_password: str):
     db_user = User(
                     username=username,
                     email=email,
                     hashed_password=hashed_password)
-    db.add()
-    db.commit(db_user)
+    db.add(db_user)
+    db.commit()
     db.refresh(db_user)
     return db_user
 
@@ -18,7 +18,8 @@ def get_user_by_email(db: Session, email: str):
 
 
 def generate_otp(db: Session, email: str):
-    otp = pyotp.random_base32()[0:6]
+    otp = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
+    
     db_user = get_user_by_email(db, email)
 
     if db_user:
