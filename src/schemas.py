@@ -6,20 +6,19 @@ class UserRegistration(BaseModel):
     password: str = Field(..., min_length=8, max_length=128)
 
     class Config:
-        orm_mode = True
+        from_attributes=True
 
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
     class Config:
-        orm_code = True
+        from_attributes=True
 
 class OTPVerification(BaseModel):
     email: EmailStr
     otp: str = Field(...,min_length=6,max_length=6)
 
     class Config:
-        orm_mode=True
+        from_attributes=True
 
-        
