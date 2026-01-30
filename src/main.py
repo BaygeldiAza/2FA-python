@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
 from sqlalchemy.orm import Session
-from src.config import settings
-from src.models import SessionLocal
+from .config import settings
+from .models import SessionLocal
 
 app = FastAPI()
 

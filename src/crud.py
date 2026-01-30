@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from src.models import User
+from .models import User
 from datetime import datetime, timedelta
 import pyotp
 
