@@ -17,6 +17,7 @@ def get_db():
     finally:
         db.close()
 
+
 @app.post("/register/")
 async def register(user: UserRegistration, db: Session = Depends(get_db)):
     email = user.email.lower().strip()

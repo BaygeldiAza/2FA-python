@@ -6,7 +6,7 @@ import secrets
 def create_user(db: Session, username: str, email: str, hashed_password: str):
     db_user = User(
                     username=username,
-                    email=email,
+                    email=email.strip(),
                     hashed_password=hashed_password)
     db.add(db_user)
     db.commit()
