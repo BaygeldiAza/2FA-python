@@ -1,6 +1,8 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from .config import settings
+from .models import Base
+
 
 engine = create_engine(
     settings.DATABASE_URL,
@@ -9,7 +11,7 @@ engine = create_engine(
     pool_size=10,
     max_overflow=20,
     pool_timeout=30,
-    future=True,
+    echo=False,
 )
 
 SessionLocal = sessionmaker(
