@@ -1,22 +1,43 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
 from sqlalchemy.orm import Session
 import bcrypt
+from contextlib import asynccontextmanager
+
 from .schemas import UserRegistration, UserLogin, OTPVerification
 from .crud import create_user, get_user_by_email, generate_otp
 from .utils import send_otp_email, send_login_notification_email 
 from .config import settings
-from .models import SessionLocal
+from .db import SessionLocal, engine
+from .models import Base
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("Creating database tables...")
+    Base.metadata.create_all(bind=engine)
+    print("Database initialized")
+
+    yield
+    print("Closing database connections... ")
+    engine.dispose()
+    print("Shutdown complete")
+
+app = FastAPI(
+    title="User Authentication API",
+    version="1.0.0",
+    lifespan=lifespan
+)
 
 # Dependency to get the database session
 def get_db():
     db = SessionLocal()
     try:
         yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
-
 
 @app.post("/register/")
 async def register(user: UserRegistration, db: Session = Depends(get_db)):
