@@ -13,7 +13,6 @@ from .models import Base
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Creating database tables...")
-    Base.metadata.create_all(bind=engine)
     print("Database initialized")
 
     yield
