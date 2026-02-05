@@ -9,6 +9,7 @@ def create_user(db: Session, username: str, email: str, hashed_password: str):
                     email=email.strip(),
                     hashed_password=hashed_password)
     db.add(db_user)
+    db.commit()
     db.refresh(db_user)
     return db_user
 
