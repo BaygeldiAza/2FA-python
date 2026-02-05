@@ -1,4 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
+from datetime import datetime
 
 class UserRegistration(BaseModel):
     username: str = Field(..., min_length=3, max_length=25)
@@ -11,6 +12,7 @@ class UserRegistration(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+    user_created_time: datetime 
 
     class Config:
         from_attributes=True
