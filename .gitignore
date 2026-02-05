@@ -1,8 +1,16 @@
+# Environment variables
 .env
+.env.local
 
-.venv
-
+# Python
 __pycache__/
-**/__pycache__/
 *.py[cod]
-*$py.class
+venv/
+env/
+
+# Database
+*.db
+*.sqlite3
+
+# Alembic
+alembic/versions/__pycache__/
