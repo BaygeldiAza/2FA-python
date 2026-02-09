@@ -9,7 +9,7 @@ load_dotenv(dotenv_path=env_path)
 class Settings: 
     DATABASE_URL: str = os.getenv("DATABASE_URL", "mysql+mysqlconnector://USERNAME:PASSWORD@localhost/mydatabase")
     SENDER_EMAIL: str = os.getenv("SENDER_EMAIL")
-    SENDER_PASSWORD: str = os.getenv("RESEND_API_KEY")
+    RESEND_API_KEY: str = os.getenv("RESEND_API_KEY")
     OTP_TTL_SECONDS: int = 120
     OTP_LEN: int = 6
 
