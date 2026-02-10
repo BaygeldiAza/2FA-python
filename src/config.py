@@ -12,5 +12,14 @@ class Settings:
     RESEND_API_KEY: str = os.getenv("RESEND_API_KEY")
     OTP_TTL_SECONDS: int = 120
     OTP_LEN: int = 6
+    # google OAuth 2.0 Settings
+    GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID")
+    GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET")
+    GOOGLE_REDIRECT_URI: str = os.getenv("GOOGLE_REDIRECT_URI")
+
+    SECRET_KEY: str = os.getenv("SECRET_KEY")
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES:int = 30
+
 
 settings = Settings()
