@@ -1,7 +1,6 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean
 from sqlalchemy.sql import func
 from sqlalchemy.ext.declarative import declarative_base
-
 from datetime import datetime
 
 Base = declarative_base()
@@ -13,6 +12,14 @@ class User(Base):
     username = Column(String(255), index=True, nullable=False)  
     email = Column(String(255), unique=True, index=True, nullable=False)  
     hashed_password = Column(String(255),nullable=False) 
+
+    #OAuth fields
+    oauth_provider = Column(String(50), nullable=True)
+    oauth_id = Column(String(255), nullable=True)
+    profile_picture = Column(String(500), nullable=True)
+    is_verified = Column(Boolean, default=False)
+
+    #OTP fields
     otp = Column(String(6), nullable=True)  
     otp_expires_at = Column(DateTime, nullable=True)
     otp_attempts = Column(Integer, default=0)
