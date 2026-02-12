@@ -28,14 +28,11 @@ def create_oauth_user(db: Session, email: str, username: str, oauth_provider: st
     db.refresh(db_user)
     return db_user
 
-
-
 def get_user_by_email(db: Session, email: str):
     return db.query(User).filter(User.email == email).first()
 
 def get_user_by_oauth(db: Session, oauth_provider: str, oauth_id: str):
     return db.query(User).filter(User.oauth_provider==oauth_provider, User.oauth_id==oauth_id).first()
-
 
 def generate_otp(db: Session, email: str):
     otp = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
@@ -48,5 +45,3 @@ def generate_otp(db: Session, email: str):
         db_user.otp_attempts = 0
         db.commit()
     return otp
-
-
