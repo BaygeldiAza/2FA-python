@@ -1,28 +1,40 @@
-import resend
+import smtplib
+import ssl
 import logging
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from .config import settings
 
-logging.basicConfig(level=logging.INFO)
+
 logger = logging.getLogger(__name__)
 
-resend.api_key = settings.RESEND_API_KEY 
 
 def send_email(to_email: str, subject: str, body: str) -> None:
     try:
-        if not settings.SENDER_EMAIL or not settings.RESEND_API_KEY:
-            raise RuntimeError("Missing SENDER_EMAIL or RESEND_API_KEY in .env")
-
         logger.info(f"Sending email to {to_email}...")
 
-        params ={
-            "from": settings.SENDER_EMAIL,
-            "to": [to_email],
-            "subject": subject,
-            "text": body,
-        }
-    
-        email = resend.Emails.send(params)
-        logger.info(f"Email sent successfully to {to_email} (ID: {email['id']})")
+        message = MIMEMultipart()
+        message["From"] = settings.SENDER_EMAIL
+        message["To"] = to_email
+        message["Subject"] = subject
+
+        message.attach(MIMEText(body, "plain"))
+        
+        context = ssl.create_default_context()
+        
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=60) as server:
+            server.ehlo()
+            server.starttls(context=context)
+            server.ehlo()
+            server.login(settings.SENDER_EMAIL, settings.SENDER_PASSWORD)
+
+            server.sendmail(
+                settings.SENDER_EMAIL,
+                to_email,
+                message.as_string(),
+            )
+
+        logger.info(f"Email sent successfully to {to_email}")
 
     except Exception as e:
         logger.error(f"Failed to send email to {to_email}: {type(e).__name__}: {str(e)}")
