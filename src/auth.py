@@ -1,11 +1,19 @@
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.orm import Session
+
 from datetime import datetime, timedelta
 from jose import JWTError, jwt  
 from google.oauth2 import id_token
 from google.auth.transport import requests
 from .config import settings
+from .db import get_db
+from .crud import get_user_by_email
 import logging
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login/")
 logger = logging.getLogger(__name__)
+
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
@@ -43,3 +51,26 @@ def verify_google_token(token: str):
     except Exception as e:
         logger.error(f"Unexpected error verifying token: {str(e)}")
         return None
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+        credentials_exception = HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+        try:
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+            
+            email: str = payload.get("sub")
+            if email is None:
+                raise credentials_exception
+    
+        except JWTError:
+            raise credentials_exception
+        
+        user = get_user_by_email(db, email)
+        if user is None:
+            raise credentials_exception
+        
+        return user
