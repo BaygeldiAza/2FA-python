@@ -1,6 +1,10 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Request
 from sqlalchemy.orm import Session
 import bcrypt
+import os
+from pathlib import Path
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 
 from .schemas import UserRegistration, UserLogin, OTPVerification, Token, GoogleAuthRequest, UserResponse
 from .crud import create_user, get_user_by_email, generate_otp, create_oauth_user, get_user_by_oauth
@@ -11,6 +15,22 @@ from .db import get_db
 
 router = APIRouter()
 
+# Fix template directory path - make it more robust
+BASE_DIR = Path(__file__).resolve().parent
+templates_dir = BASE_DIR / "templates"
+
+# Debug template directory
+print(f"Router BASE_DIR: {BASE_DIR}")
+print(f"Templates directory: {templates_dir}")
+print(f"Templates directory exists: {templates_dir.exists()}")
+
+if templates_dir.exists():
+    templates = Jinja2Templates(directory=str(templates_dir))
+else:
+    # Try alternative path
+    templates_dir = Path(os.path.dirname(os.path.abspath(__file__))) / "templates"
+    print(f"Trying alternative path: {templates_dir}")
+    templates = Jinja2Templates(directory=str(templates_dir))
 
 @router.post("/register/")
 async def register(user: UserRegistration, db: Session = Depends(get_db)):
@@ -84,6 +104,35 @@ async def verify_otp(otp_data: OTPVerification, db: Session = Depends(get_db)):
         }
     }
 
+@router.get("/", response_class=HTMLResponse)
+async def root(request: Request):
+    # Debug: Print what we're sending to template
+    client_id = settings.GOOGLE_CLIENT_ID
+    print(f"Rendering template with GOOGLE_CLIENT_ID: {client_id[:20] if client_id else 'NONE'}...")
+    
+    if not client_id:
+        print("❌ ERROR: GOOGLE_CLIENT_ID is None or empty!")
+    
+    return templates.TemplateResponse(
+        "index.html",
+        {
+            "request": request,
+            "google_client_id": client_id or ""  # Provide empty string as fallback
+        }
+    )
+
+@router.get("/debug/check-config")
+async def check_config():
+    """Debug endpoint to check configuration"""
+    return {
+        "google_client_id_exists": bool(settings.GOOGLE_CLIENT_ID),
+        "google_client_id_length": len(settings.GOOGLE_CLIENT_ID) if settings.GOOGLE_CLIENT_ID else 0,
+        "google_client_id_preview": settings.GOOGLE_CLIENT_ID[:20] + "..." if settings.GOOGLE_CLIENT_ID else "EMPTY",
+        "templates_dir": str(templates_dir),
+        "templates_dir_exists": templates_dir.exists(),
+        "template_files": list(templates_dir.glob("*.html")) if templates_dir.exists() else []
+    }
+
 @router.post("/auth/google", response_model=Token)
 async def google_auth(auth_data: GoogleAuthRequest, db: Session = Depends(get_db)):
     """Handle Google OAuth authentication"""
@@ -141,4 +190,3 @@ async def google_auth(auth_data: GoogleAuthRequest, db: Session = Depends(get_db
 @router.get("/auth/me", response_model=UserResponse)
 async def read_current_user(current_user = Depends(get_current_user)):
     return current_user
-    
