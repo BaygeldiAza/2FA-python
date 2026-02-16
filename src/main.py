@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
 
 from contextlib import asynccontextmanager
 from .models import Base
@@ -15,7 +14,7 @@ async def lifespan(app: FastAPI):
     print("Database initialized")
 
     yield
-    print("Closing database connections... ")
+    print("Closing database connections...")
     engine.dispose()
     print("Shutdown complete")
 
@@ -25,13 +24,22 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware for OAuth popup
+# Enhanced CORS for Google OAuth
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your frontend domain
+    allow_origins=[
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost",
+        "http://127.0.0.1",
+        "https://accounts.google.com",
+        "https://accounts.google.com:443",
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,
 )
 
 app.include_router(router)
