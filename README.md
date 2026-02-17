@@ -440,26 +440,6 @@ users
 - [ ] Security notifications
 - [ ] Passwordless authentication
 
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**Issue**: Google button doesn't work  
-**Solution**: Check `GOOGLE_CLIENT_ID` in `.env` and browser console
-
-**Issue**: OTP emails not sending  
-**Solution**: Verify Gmail App Password (16 characters, no spaces)
-
-**Issue**: Database connection error  
-**Solution**: Check MySQL is running and `DATABASE_URL` is correct
-
-**Issue**: `redirect_uri_mismatch`  
-**Solution**: Match redirect URIs exactly in Google Console
-
-For detailed solutions, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
-
-
-
 ## 📞 Support
 
 - 📧 **Email**: baygeldi0718@gmail.com
