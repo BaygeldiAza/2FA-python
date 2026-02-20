@@ -190,3 +190,7 @@ async def google_auth(auth_data: GoogleAuthRequest, db: Session = Depends(get_db
 @router.get("/auth/me", response_model=UserResponse)
 async def read_current_user(current_user = Depends(get_current_user)):
     return current_user
+
+@router.get("/")
+async def root():
+    return {"message": "Authentication system"}
