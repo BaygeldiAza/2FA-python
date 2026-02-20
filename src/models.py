@@ -1,4 +1,5 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, ForeignKey
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
@@ -13,6 +14,12 @@ class User(Base):
     email = Column(String(255), unique=True, index=True, nullable=False)  
     hashed_password = Column(String(255),nullable=False) 
 
+    refresh_tokens = relationship(
+        "Refresh-Token",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+
     #OAuth fields
     oauth_provider = Column(String(50), nullable=True)
     oauth_id = Column(String(255), nullable=True)
@@ -24,7 +31,21 @@ class User(Base):
     otp_expires_at = Column(DateTime, nullable=True)
     otp_attempts = Column(Integer, default=0)
     user_created_time = Column(DateTime, default=datetime.utcnow, server_default=func.now(), nullable=False)
-
     def __repr__(self):
         return f"<User(id='{self.id}', username='{self.username}', email='{self.email}')>"
 
+
+class Refresh_Token(Base):
+    __tablename__ = "refresh_tokens"
+
+    id = Column(Integer,primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"),index=True, nullable=False)
+    token_hash = Column(String(255),nullable=False)
+    expires_at = Column(DateTime,nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), nullable=False)
+    revoked = Column(Boolean,default=False)
+
+    user = relationship(
+        "User",
+        back_populates="refresh_tokens"
+    )
