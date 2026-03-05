@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from contextlib import asynccontextmanager
-from .models import Base
+from .models import BaseModel
 from .db import engine
 from .router import router
 
@@ -10,7 +10,7 @@ from .router import router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Creating database tables...")
-    Base.metadata.create_all(bind=engine)
+    BaseModel.metadata.create_all(bind=engine)
     print("Database initialized")
 
     yield

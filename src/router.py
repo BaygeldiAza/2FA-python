@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Request
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Request, status
 from sqlalchemy.orm import Session
 import bcrypt
 import os
@@ -6,10 +6,27 @@ from pathlib import Path
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from .schemas import UserRegistration, UserLogin, OTPVerification, Token, GoogleAuthRequest, UserResponse
+from .schemas import (
+    UserRegistration, 
+    UserLogin, 
+    OTPVerification, 
+    Token, 
+    GoogleAuthRequest, 
+    UserResponse,
+    RefreshTokenRequest 
+)
 from .crud import create_user, get_user_by_email, generate_otp, create_oauth_user, get_user_by_oauth
 from .utils import send_otp_email 
-from .auth import create_access_token, verify_google_token, get_current_user
+from .auth import (
+    create_access_token, 
+    create_refresh_token, 
+    verify_google_token, 
+    get_current_user,
+    verify_refresh_token, 
+    revoke_refresh_token, 
+    revoke_all_user_tokens,
+    cleanup_expired_tokens 
+)
 from .config import settings
 from .db import get_db
 
@@ -32,19 +49,19 @@ else:
     print(f"Trying alternative path: {templates_dir}")
     templates = Jinja2Templates(directory=str(templates_dir))
 
+
 @router.post("/register/")
 async def register(user: UserRegistration, db: Session = Depends(get_db)):
     email = user.email.lower().strip()
     
-    # Check if user already exists
     if get_user_by_email(db, email):
         raise HTTPException(status_code=409, detail="Email already registered")
 
-    # Hash password and create user
     hashed_password = bcrypt.hashpw(user.password.encode("utf-8"), bcrypt.gensalt())
     create_user(db, user.username, email, hashed_password.decode('utf-8'))
 
     return {"message": "User registered successfully"}
+
 
 @router.post("/login/")
 async def login(user: UserLogin, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
@@ -60,11 +77,11 @@ async def login(user: UserLogin, background_tasks: BackgroundTasks, db: Session 
     if not bcrypt.checkpw(user.password.encode("utf-8"), db_user.hashed_password.encode("utf-8")):
         raise HTTPException(status_code=400, detail="Invalid credentials")
 
-    # Generate OTP and send it
     otp = generate_otp(db, email)
     background_tasks.add_task(send_otp_email, db_user.email, otp)
 
     return {"message": f"OTP sent to email (expires in {settings.OTP_TTL_SECONDS} seconds)"}
+
 
 @router.post("/verify_otp/", response_model=Token)
 async def verify_otp(otp_data: OTPVerification, db: Session = Depends(get_db)):
@@ -92,8 +109,12 @@ async def verify_otp(otp_data: OTPVerification, db: Session = Depends(get_db)):
     # Create access token
     access_token = create_access_token(data={"sub": db_user.email, "user_id": db_user.id})
     
+    # Create and store refresh token
+    refresh_token = create_refresh_token(db=db, user_id=db_user.id, email=db_user.email)
+    
     return {
         "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer",
         "user": {
             "id": db_user.id,
@@ -104,9 +125,56 @@ async def verify_otp(otp_data: OTPVerification, db: Session = Depends(get_db)):
         }
     }
 
+
+@router.post("/auth/refresh", response_model=Token)
+async def refresh_access_token(refresh_data: RefreshTokenRequest, db: Session = Depends(get_db)):
+    
+    
+    user = verify_refresh_token(db, refresh_data.refresh_token)
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token"
+        )
+    
+    # Revoke the old refresh token (one-time use)
+    revoke_refresh_token(db, refresh_data.refresh_token)
+    
+    # Create new tokens
+    access_token = create_access_token(data={"sub": user.email, "user_id": user.id})
+    new_refresh_token = create_refresh_token(db=db, user_id=user.id, email=user.email)
+    
+    return {
+        "access_token": access_token,
+        "refresh_token": new_refresh_token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "profile_picture": user.profile_picture,
+            "is_verified": user.is_verified
+        }
+    }
+
+
+@router.post("/auth/logout")
+async def logout(refresh_data: RefreshTokenRequest, current_user = Depends(get_current_user), db: Session = Depends(get_db)):
+    
+    revoke_refresh_token(db, refresh_data.refresh_token)
+    return {"message": "Logged out successfully"}
+
+
+@router.post("/auth/logout-all")
+async def logout_all_devices(current_user = Depends(get_current_user), db: Session = Depends(get_db)):
+    revoke_all_user_tokens(db, current_user.id)
+    return {"message": "Logged out from all devices"}
+
+
 @router.get("/", response_class=HTMLResponse)
 async def root(request: Request):
-    # Debug: Print what we're sending to template
+
     client_id = settings.GOOGLE_CLIENT_ID
     print(f"Rendering template with GOOGLE_CLIENT_ID: {client_id[:20] if client_id else 'NONE'}...")
     
@@ -121,6 +189,7 @@ async def root(request: Request):
         }
     )
 
+
 @router.get("/debug/check-config")
 async def check_config():
     """Debug endpoint to check configuration"""
@@ -132,6 +201,7 @@ async def check_config():
         "templates_dir_exists": templates_dir.exists(),
         "template_files": list(templates_dir.glob("*.html")) if templates_dir.exists() else []
     }
+
 
 @router.post("/auth/google", response_model=Token)
 async def google_auth(auth_data: GoogleAuthRequest, db: Session = Depends(get_db)):
@@ -174,8 +244,12 @@ async def google_auth(auth_data: GoogleAuthRequest, db: Session = Depends(get_db
     # Create access token
     access_token = create_access_token(data={"sub": db_user.email, "user_id": db_user.id})
     
+    # Create and store refresh token
+    refresh_token = create_refresh_token(db=db, user_id=db_user.id, email=db_user.email)
+    
     return {
         "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer",
         "user": {
             "id": db_user.id,
@@ -187,10 +261,13 @@ async def google_auth(auth_data: GoogleAuthRequest, db: Session = Depends(get_db
         }
     }
 
+
 @router.get("/auth/me", response_model=UserResponse)
 async def read_current_user(current_user = Depends(get_current_user)):
     return current_user
 
-@router.get("/")
-async def root():
-    return {"message": "Authentication system"}
+
+@router.post("/admin/cleanup-tokens")
+async def cleanup_tokens(current_user = Depends(get_current_user),db: Session = Depends(get_db)):
+    deleted = cleanup_expired_tokens(db)
+    return {"message": f"Cleaned up {deleted} tokens"}
