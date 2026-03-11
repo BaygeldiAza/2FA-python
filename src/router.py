@@ -15,7 +15,7 @@ from .schemas import (
     UserResponse,
     RefreshTokenRequest 
 )
-from .crud import create_user, get_user_by_email, generate_otp, create_oauth_user, get_user_by_oauth
+from .crud import create_user, get_user_by_email, generate_otp, create_oauth_user, get_user_by_oauth, save_otp
 from .utils import send_otp_email 
 from .auth import (
     create_access_token, 
@@ -78,6 +78,8 @@ async def login(user: UserLogin, background_tasks: BackgroundTasks, db: Session 
         raise HTTPException(status_code=400, detail="Invalid credentials")
 
     otp = generate_otp(db, email)
+
+    save_otp(db, db_user, otp, settings.OTP_TTL_SECONDS)
     background_tasks.add_task(send_otp_email, db_user.email, otp)
 
     return {"message": f"OTP sent to email (expires in {settings.OTP_TTL_SECONDS} seconds)"}
@@ -85,20 +87,21 @@ async def login(user: UserLogin, background_tasks: BackgroundTasks, db: Session 
 
 @router.post("/verify_otp/", response_model=Token)
 async def verify_otp(otp_data: OTPVerification, db: Session = Depends(get_db)):
-    from datetime import datetime
+    from datetime import datetime  
     email = otp_data.email.lower().strip()
     db_user = get_user_by_email(db, email)
     
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    if not db_user.otp_expires_at or db_user.otp_expires_at < datetime.utcnow():
+    now = datetime.utcnow()  
+    if not db_user.otp_expires_at or db_user.otp_expires_at < now:
         db_user.otp = None
         db_user.otp_expires_at = None
         db.commit()
         raise HTTPException(status_code=400, detail="OTP expired! Login again.")
     
-    if db_user.otp != otp_data.otp:
+    if str(db_user.otp) != str(otp_data.otp):
         raise HTTPException(status_code=400, detail="Invalid OTP")
     
     # Clear OTP
@@ -106,10 +109,8 @@ async def verify_otp(otp_data: OTPVerification, db: Session = Depends(get_db)):
     db_user.otp_expires_at = None
     db.commit()
     
-    # Create access token
+    # Create tokens
     access_token = create_access_token(data={"sub": db_user.email, "user_id": db_user.id})
-    
-    # Create and store refresh token
     refresh_token = create_refresh_token(db=db, user_id=db_user.id, email=db_user.email)
     
     return {
@@ -124,7 +125,6 @@ async def verify_otp(otp_data: OTPVerification, db: Session = Depends(get_db)):
             "is_verified": db_user.is_verified
         }
     }
-
 
 @router.post("/auth/refresh", response_model=Token)
 async def refresh_access_token(refresh_data: RefreshTokenRequest, db: Session = Depends(get_db)):

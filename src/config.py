@@ -33,8 +33,8 @@ class Settings:
     SMTP_HOST: str = os.getenv("SMTP_HOST")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", 587))
     OTP_TTL_SECONDS: int = 120
-    OTP_LEN: int = 6
-    
+    OTP_LEN: str = 6
+    OTP_ATTEMPTS: int = 5
     # Google OAuth 2.0 Settings
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID")
     GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET")

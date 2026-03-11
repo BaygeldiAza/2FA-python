@@ -1,7 +1,8 @@
 from sqlalchemy.orm import Session
 from .models import User, RefreshToken
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import secrets
+from .config import settings
 
 def create_user(db: Session, username: str, email: str, hashed_password: str):
     db_user = User(
@@ -37,26 +38,33 @@ def get_user_by_oauth(db: Session, oauth_provider: str, oauth_id: str):
 def generate_otp(db: Session, email: str):
     return ''.join([str(secrets.randbelow(10)) for _ in range(6)])
 
-def save_otp(db: Session,user: User, otp: str, ttl_seconds: int = 120):    
-    if user:
-        user.otp = otp
-        user.otp_expires_at = datetime.utcnow() + timedelta(seconds=ttl_seconds)
-        user.otp_attempts = 0
-        db.commit()
-        db.refresh(user)
+def save_otp(db: Session, user: User, otp: str, ttl_seconds: int = 300):
+    user.otp = otp
+    user.otp_expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)  # ✅ Timezone-aware
+    user.otp_attempts = 0
+    db.commit()
+    db.refresh(user)
     return user
 
-def verify_otp(db: Session, user: User, provided_otp: str) -> bool:
+def verify_otp(db: Session, user: User, provided_otp: int) -> bool:
     if not user or not user.otp:
         return False
     
-    if not user.otp_expires_at or user.otp_expires_at < datetime.utcnow():
+    now = datetime.now(timezone.utc)
+    
+    if not user.otp_expires_at or user.otp_expires_at < now:
         user.otp = None
         user.otp_expires_at = None 
         db.commit()
         return False
     
-    if user.otp!=provided_otp:
+    if user.otp_attempts >= settings.OTP_ATTEMPTS:
+        user.otp = None
+        user.otp_expires_at = None
+        db.commit()
+        return False
+
+    if str(user.otp)!=str(provided_otp):
         user.otp_attempts += 1
         db.commit()
         return False
